@@ -5,6 +5,6 @@ import (
 )
 
 func main() {
-	c := client.NewCmdClient("http://localhost:8545", "./keys")
+	c := client.NewCmdClient("http://localhost:8545", "./keystore")
 	c.Run()
 }

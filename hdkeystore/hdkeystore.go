@@ -17,45 +17,39 @@ import (
 )
 
 type HDKeyStore struct {
-	keysDirPath     string
-	scryptN         int
-	scryptP         int
-	PrivateKeyECDSA *ecdsa.PrivateKey
+	keysDirPath string
+	scryptN     int
+	scryptP     int
+	Key         keystore.Key
 }
 
-func NewKeyFromECDSA(privateKeyECDSA *ecdsa.PrivateKey) *keystore.Key {
+func NewHDKeyStore(keysDirPath string, privateKeyECDSA *ecdsa.PrivateKey) *HDKeyStore {
 	id := utils.NewRandom()
 	uuid := [16]byte{}
 	copy(uuid[:], id)
-	key := &keystore.Key{
+	key := keystore.Key{
 		Id:         uuid,
 		Address:    crypto.PubkeyToAddress(privateKeyECDSA.PublicKey),
 		PrivateKey: privateKeyECDSA,
 	}
-	return key
-}
-
-func NewHDKeyStore(keysDirPath string, privateKeyECDSA *ecdsa.PrivateKey) *HDKeyStore {
 	return &HDKeyStore{
-		keysDirPath:     keysDirPath,
-		scryptN:         keystore.StandardScryptN,
-		scryptP:         keystore.StandardScryptP,
-		PrivateKeyECDSA: privateKeyECDSA,
+		keysDirPath: keysDirPath,
+		scryptN:     keystore.StandardScryptN,
+		scryptP:     keystore.StandardScryptP,
+		Key:         key,
 	}
 }
 
 func NewHDkeyStoreNoKey(path string) *HDKeyStore {
 	return &HDKeyStore{
-		keysDirPath:     path,
-		scryptN:         keystore.StandardScryptN,
-		scryptP:         keystore.StandardScryptP,
-		PrivateKeyECDSA: nil,
+		keysDirPath: path,
+		scryptN:     keystore.StandardScryptN,
+		scryptP:     keystore.StandardScryptP,
+		Key:         keystore.Key{},
 	}
 }
 
-func (ks *HDKeyStore) StoreKey(filename, auth string) error {
-	key := NewKeyFromECDSA(ks.PrivateKeyECDSA)
-	filename = ks.JoinPath(filename)
+func (ks *HDKeyStore) StoreKey(filename string, key *keystore.Key, auth string) error {
 	keyjson, err := keystore.EncryptKey(key, auth, ks.scryptN, ks.scryptP)
 	if err != nil {
 		return err
@@ -82,29 +76,30 @@ func (ks *HDKeyStore) GetKey(addr common.Address, filename, auth string) (*keyst
 	if key.Address != addr {
 		return nil, fmt.Errorf("key content mismatch: have account %x, want %x", key.Address, addr)
 	}
-	ks.PrivateKeyECDSA = key.PrivateKey
+	ks.Key = *key
 	return key, nil
 }
 
 func (ks *HDKeyStore) SignTx(account common.Address, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), ks.PrivateKeyECDSA)
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), ks.Key.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
-	// 使用 types.Sender 函数获取交易的发送者地址
-	signer := types.NewEIP155Signer(chainID)
-	sender, err := types.Sender(signer, signedTx)
+	// 使用 types.Sender 获取发送者地址
+	sender, err := types.Sender(types.NewEIP155Signer(chainID), signedTx)
 	if err != nil {
 		return nil, err
 	}
+
 	if sender != account {
-		return nil, fmt.Errorf("not authorized to sign this account")
+		return nil, fmt.Errorf("signer mismatch: have account %x, want %x", sender.Hex(), account.Hex())
 	}
+
 	return signedTx, nil
 }
 
 func (ks *HDKeyStore) NewTransactOpts(chainID *big.Int) (*bind.TransactOpts, error) {
-	opts, err := bind.NewKeyedTransactorWithChainID(ks.PrivateKeyECDSA, chainID)
+	opts, err := bind.NewKeyedTransactorWithChainID(ks.Key.PrivateKey, chainID)
 	if err != nil {
 		return nil, err
 	}

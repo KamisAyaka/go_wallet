@@ -24,7 +24,8 @@ type Client struct {
 	dataDir string
 }
 
-const TokenContractAddress = "" //token部署合约之后的地址
+const TokenContractAddress = "0xD47497a911aD47731055BDC68718D2814d88Ff9B" //token部署合约之后的地址
+var chainID = big.NewInt(1234567)
 
 func NewCmdClient(network, dataDir string) *Client {
 	return &Client{
@@ -153,11 +154,11 @@ func (c *Client) transfer(from, to string, value int64) error {
 	defer cli.Close()
 	nonce, _ := cli.NonceAt(context.Background(), common.HexToAddress(from), nil)
 
-	gaslimit := uint64(21000)
+	gaslimit := uint64(210000)
 	gasprice := big.NewInt(5000000000)
 	amount := big.NewInt(value)
 	tx := types.NewTransaction(nonce, common.HexToAddress(to), amount, gaslimit, gasprice, []byte("Salary"))
-	signedTx, err := w.HDKeyStore.SignTx(common.HexToAddress(from), tx, nil)
+	signedTx, err := w.HDKeyStore.SignTx(common.HexToAddress(from), tx, chainID)
 	if err != nil {
 		fmt.Println("Failed to sign tx", err)
 	}
@@ -187,14 +188,23 @@ func (c *Client) sendtoken(from, to string, value int64) error {
 	token, _ := sol.NewToken(common.HexToAddress(TokenContractAddress), cli)
 
 	w, _ := hdwallet.LoadWallet(from, c.dataDir)
-	auth, _ := w.HDKeyStore.NewTransactOpts(big.NewInt(31337))
+	auth, _ := w.HDKeyStore.NewTransactOpts(chainID)
 	_, err := token.Transfer(auth, common.HexToAddress(to), big.NewInt(value))
 	return err
 }
 
 func (c *Client) tokenbalance(from string) (int64, error) {
-	cli, _ := ethclient.Dial(c.network)
+	cli, err := ethclient.Dial(c.network)
+	if err != nil {
+		log.Panic("Failed to connect to the Ethereum client", err)
+	}
 	defer cli.Close()
+
+	// 检查合约地址是否有代码
+	code, err := cli.CodeAt(context.Background(), common.HexToAddress(TokenContractAddress), nil)
+	if err != nil || len(code) == 0 {
+		log.Panic("No contract code at given address")
+	}
 
 	token, err := sol.NewToken(common.HexToAddress(TokenContractAddress), cli)
 	if err != nil {

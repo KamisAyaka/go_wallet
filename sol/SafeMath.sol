@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.15;
 
 /**
  * @dev Math operations with safety checks that throw on error. This contract is based

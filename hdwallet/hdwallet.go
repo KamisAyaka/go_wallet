@@ -3,8 +3,10 @@ package hdwallet
 import (
 	"crypto/ecdsa"
 	"fmt"
-	hdkeystore "go_wallet/keystore"
+	hdkeystore "go_wallet/hdkeystore"
 	"go_wallet/mnemonic"
+	"os"
+	"path/filepath"
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
@@ -106,17 +108,29 @@ func DerivePublicKey(privateKey *ecdsa.PrivateKey) *ecdsa.PublicKey {
 
 func (wallet HDWallet) StoreKey(pass string) error {
 	filename := wallet.HDKeyStore.JoinPath(wallet.Address.Hex())
-	return wallet.HDKeyStore.StoreKey(filename, pass)
+	return wallet.HDKeyStore.StoreKey(filename, &wallet.HDKeyStore.Key, pass)
 }
 
 func LoadWallet(filename, datadir string) (HDWallet, error) {
 	hdks := hdkeystore.NewHDkeyStoreNoKey(datadir)
 	fmt.Println("Please input password for:", filename)
+
+	fullPath := filepath.Join(datadir, filename)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		fmt.Printf("File does not exist: %s\n", fullPath)
+		return HDWallet{}, fmt.Errorf("file does not exist: %s", fullPath)
+	}
+
 	pass, _ := gopass.GetPasswd()
 	fromaddr := common.HexToAddress(filename)
-	_, err := hdks.GetKey(fromaddr, filename, string(pass))
+	privateKey, err := hdks.GetKey(fromaddr, fullPath, string(pass)) // 确保使用完整路径
 	if err != nil {
-		fmt.Println("Failed to get key from keystore")
+		fmt.Println("Failed to get key from keystore:", err)
+		return HDWallet{}, err
+	}
+	if privateKey == nil {
+		fmt.Println("Private key is nil for address:", fromaddr.Hex())
+		return HDWallet{}, fmt.Errorf("private key is nil for address: %s", fromaddr.Hex())
 	}
 	return HDWallet{
 		Address:    fromaddr,
