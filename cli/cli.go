@@ -222,33 +222,49 @@ func (c *Client) tokenbalance(from string) (int64, error) {
 	return value.Int64(), nil
 }
 
+// tokendetail 函数获取指定地址的代币转账记录。
+// 参数:
+//
+//	who - 要查询的以太坊地址。
+//
+// 返回值:
+//
+//	如果查询过程中发生错误，则返回错误。
 func (c *Client) tokendetail(who string) error {
+	// 连接到以太坊客户端。
 	cli, err := ethclient.Dial(c.network)
 	if err != nil {
 		log.Panic("Failed to connect to the Ethereum client", err)
 	}
 	defer cli.Close()
 
+	// 初始化过滤查询，以获取代币转账事件的日志。
 	query := ethereum.FilterQuery{
 		Addresses: []common.Address{},
 		Topics:    [][]common.Hash{{}},
 	}
+	// 将合约地址转换为以太坊地址对象。
 	cAddress := common.HexToAddress(TokenContractAddress)
+	// 计算代币转账事件的主题哈希。
 	topicHash := crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 
+	// 使用过滤查询获取日志。
 	logs, err := cli.FilterLogs(context.Background(), query)
 	if err != nil {
 		log.Panic("Failed to filter logs", err)
 	}
 
+	// 遍历日志，查找与指定地址相关的代币转账记录。
 	for _, v := range logs {
 		if cAddress == v.Address {
 			if len(v.Topics) == 3 {
 				if v.Topics[0] == topicHash {
+					// 提取转账事件的日志数据。
 					fromF := v.Topics[1].Bytes()[len(v.Topics[1].Bytes())-20:]
 					to := v.Topics[2].Bytes()[len(v.Topics[2].Bytes())-20:]
 					val := big.NewInt(0)
 					val.SetBytes(v.Data)
+					// 检查转账事件的发送方或接收方是否为指定地址。
 					if strings.EqualFold(fmt.Sprintf("0x%x", fromF), who) {
 						fmt.Printf(" from : 0x%x\n to : 0x%x\n value : %d\n BlockNumber : %d\n", fromF, to, val.Int64(), v.BlockNumber)
 						if strings.EqualFold(fmt.Sprintf("0x%x", to), who) {

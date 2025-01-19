@@ -23,6 +23,7 @@ type HDKeyStore struct {
 	Key         keystore.Key
 }
 
+// NewHDKeyStore 创建一个新的 HDKeyStore 实例，并使用给定的私钥 ECDSA。
 func NewHDKeyStore(keysDirPath string, privateKeyECDSA *ecdsa.PrivateKey) *HDKeyStore {
 	id := utils.NewRandom()
 	uuid := [16]byte{}
@@ -40,6 +41,7 @@ func NewHDKeyStore(keysDirPath string, privateKeyECDSA *ecdsa.PrivateKey) *HDKey
 	}
 }
 
+// NewHDkeyStoreNoKey 创建一个新的 HDKeyStore 实例，但不包含私钥。
 func NewHDkeyStoreNoKey(path string) *HDKeyStore {
 	return &HDKeyStore{
 		keysDirPath: path,
@@ -49,6 +51,7 @@ func NewHDkeyStoreNoKey(path string) *HDKeyStore {
 	}
 }
 
+// StoreKey 将密钥存储到指定的文件中，并使用给定的密码进行加密。
 func (ks *HDKeyStore) StoreKey(filename string, key *keystore.Key, auth string) error {
 	keyjson, err := keystore.EncryptKey(key, auth, ks.scryptN, ks.scryptP)
 	if err != nil {
@@ -57,6 +60,7 @@ func (ks *HDKeyStore) StoreKey(filename string, key *keystore.Key, auth string) 
 	return utils.WriteKeyFile(filename, keyjson)
 }
 
+// JoinPath 将给定的文件名与密钥存储目录路径连接起来，返回完整的文件路径。
 func (ks HDKeyStore) JoinPath(filename string) string {
 	if filepath.IsAbs(filename) {
 		return filename
@@ -64,6 +68,7 @@ func (ks HDKeyStore) JoinPath(filename string) string {
 	return filepath.Join(ks.keysDirPath, filename)
 }
 
+// GetKey 从指定的文件中读取并解密密钥，并验证地址是否匹配。
 func (ks *HDKeyStore) GetKey(addr common.Address, filename, auth string) (*keystore.Key, error) {
 	keyjson, err := os.ReadFile(filename)
 	if err != nil {
@@ -80,6 +85,7 @@ func (ks *HDKeyStore) GetKey(addr common.Address, filename, auth string) (*keyst
 	return key, nil
 }
 
+// SignTx 使用当前存储的私钥对交易进行签名，并验证签名者的地址是否匹配。
 func (ks *HDKeyStore) SignTx(account common.Address, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
 	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), ks.Key.PrivateKey)
 	if err != nil {
@@ -98,6 +104,7 @@ func (ks *HDKeyStore) SignTx(account common.Address, tx *types.Transaction, chai
 	return signedTx, nil
 }
 
+// NewTransactOpts 创建一个新的 TransactOpts 实例，用于交易操作。
 func (ks *HDKeyStore) NewTransactOpts(chainID *big.Int) (*bind.TransactOpts, error) {
 	opts, err := bind.NewKeyedTransactorWithChainID(ks.Key.PrivateKey, chainID)
 	if err != nil {
