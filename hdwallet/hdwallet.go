@@ -183,3 +183,36 @@ func LoadWallet(filename, datadir string) (HDWallet, error) {
 		HDKeyStore: hdks,
 	}, nil
 }
+
+func LoadWalletByPass(filename, datadir, pass string) (HDWallet, error) {
+	// 创建一个新的HD密钥库实例。
+	hdks := hdkeystore.NewHDkeyStoreNoKey(datadir)
+	fmt.Println("Please input password for:", filename)
+
+	// 生成密钥文件的完整路径。
+	fullPath := filepath.Join(datadir, filename)
+	// 检查文件是否存在。
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		fmt.Printf("File does not exist: %s\n", fullPath)
+		return HDWallet{}, fmt.Errorf("file does not exist: %s", fullPath)
+	}
+
+	// 将文件名转换为以太坊地址。
+	fromaddr := common.HexToAddress(filename)
+	// 从密钥文件中获取私钥。
+	privateKey, err := hdks.GetKey(fromaddr, fullPath, string(pass)) // 确保使用完整路径
+	if err != nil {
+		fmt.Println("Failed to get key from keystore:", err)
+		return HDWallet{}, err
+	}
+	// 检查私钥是否为空。
+	if privateKey == nil {
+		fmt.Println("Private key is nil for address:", fromaddr.Hex())
+		return HDWallet{}, fmt.Errorf("private key is nil for address: %s", fromaddr.Hex())
+	}
+	// 返回加载的HD钱包实例。
+	return HDWallet{
+		Address:    fromaddr,
+		HDKeyStore: hdks,
+	}, nil
+}
